@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,24 +12,79 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <chrono>
+#include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
-#define CHK_ERR(stat)         \
-    if ((stat) < 0) {         \
+#define CHK_ERR(stmt)         \
+    if ((stmt) < 0) {         \
         assert_perror(errno); \
     }
 
-class Comm {
+template <typename T>
+class CircularBuffer {
    protected:
-    static constexpr int max_data_size = 65507 - sizeof(uint64_t);
+    std::vector<T> v;
+    int st, ed;
+
+   public:
+    CircularBuffer(int size) {
+        v.resize(size);
+        st = ed = 0;
+    }
+
+    T &operator[](int index) { return v[(st + index) % v.size()]; }
+    T &front() { return this->v[this->st]; }
+    void pop_front() {
+        this->v[this->st] = T();
+        this->st = (this->st + 1) % this->v.size();
+    }
+};
+
+template <typename T>
+class CircularQueue : public CircularBuffer<T> {
+   private:
+    int sz;
+
+   public:
+    CircularQueue(int size) : CircularBuffer<T>(size) { sz = 0; }
+    bool empty() { return sz == 0; }
+    bool full() { return sz == this->v.size(); }
+    int size() { return sz; }
+
+    void push_back(T item) {
+        assert(this->sz < this->v.size());
+        this->v[this->ed] = item;
+        this->ed = (this->ed + 1) % this->v.size();
+        this->sz++;
+    }
+    void pop_front() {
+        assert(this->sz > 0);
+        this->st = (this->st + 1) % this->v.size();
+        this->sz--;
+    }
+};
+
+class Comm {
+   public:
+    static constexpr int max_data_size = 65507 - sizeof(int64_t);
+    static const int window_size = 3;
+
+   protected:
     struct packet {
-        uint64_t seq;
+        int64_t seq;
         char data[max_data_size];
     };
     struct ack_packet {
-        uint64_t ack;
+        int64_t ack;
     };
+    long get_time_ms() {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    }
 };
 
 class CommClient : Comm {
@@ -36,15 +92,12 @@ class CommClient : Comm {
     int fd;
     struct sockaddr_in addr;
     uint64_t next_seq;
+    struct pollfd pollfd;
 
    public:
     CommClient(std::string hostname, int port) {
-        next_seq = 0;
+        next_seq = 1;
         CHK_ERR(fd = socket(AF_INET, SOCK_DGRAM, 0));
-        struct timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-        CHK_ERR(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)));
         memset(&addr, 0, sizeof(struct sockaddr_in));
         addr.sin_family = AF_INET;
         addr.sin_port = htons(port);
@@ -54,25 +107,93 @@ class CommClient : Comm {
         assert(host_entry != NULL);
         in_addr = (struct in_addr *)host_entry->h_addr_list[0];
         addr.sin_addr = *in_addr;
+
+        pollfd.fd = fd;
+        pollfd.events =
+            POLLIN | POLLERR | POLLPRI | POLLRDHUP | POLLHUP | POLLNVAL;
     }
 
-    void send(void *data, int len) {
+    void send(const void *data, int len) {
         assert(len <= max_data_size);
         struct packet pkt;
         struct ack_packet ack_pkt;
         pkt.seq = next_seq++;
         memcpy(pkt.data, data, len);
         while (1) {
-            CHK_ERR(sendto(fd, &pkt, len + sizeof(uint64_t), 0,
+            CHK_ERR(sendto(fd, &pkt, len + sizeof(int64_t), 0,
                            (struct sockaddr *)&addr, sizeof(addr)));
-            int ret = recvfrom(fd, &ack_pkt, sizeof(struct ack_packet), 0, NULL,
-                               NULL);
-            if (ret != -1) {
-                break;
-            } else if (errno == EAGAIN || ack_pkt.ack != pkt.seq) {
+
+            int ret = poll(&pollfd, 1, 1000);
+            if (ret == 0) {
+                puts("timeout");
                 continue;
             }
-            assert_perror(errno);
+            CHK_ERR(recvfrom(fd, &ack_pkt, sizeof(struct ack_packet), 0, NULL,
+                             NULL));
+
+            if (ack_pkt.ack == pkt.seq) {
+                break;
+            }
+        }
+    }
+
+    void sendbig(void *data, uint64_t len) {
+        struct cque_item {
+            int64_t seq, st_bytes;
+            long ts;
+            bool ok;
+            int data_len;
+        };
+        CircularQueue<struct cque_item> cque(window_size);
+        int64_t cur_bytes = 0;
+        struct packet pkt;
+        struct ack_packet ack_pkt;
+        while (1) {
+            for (int i = 0; i < cque.size(); i++) {
+                if (cque[i].ok || get_time_ms() - cque[i].ts < 1000) continue;
+                puts("resend");
+                pkt.seq = cque[i].seq;
+                memcpy(pkt.data, (char *)data + cque[i].st_bytes,
+                       cque[i].data_len);
+                CHK_ERR(sendto(fd, &pkt, cque[i].data_len + sizeof(int64_t), 0,
+                               (struct sockaddr *)&addr, sizeof(addr)));
+                cque[i].ts = get_time_ms();
+            }
+            int data_len =
+                std::min(len - cur_bytes, static_cast<uint64_t>(max_data_size));
+            if (data_len <= 0 && cque.empty()) break;
+
+            if (data_len > 0 && !cque.full()) {
+                pkt.seq = next_seq++;
+                if (cur_bytes + data_len >= len) pkt.seq = -pkt.seq;
+                memcpy(pkt.data, (char *)data + cur_bytes, data_len);
+                CHK_ERR(sendto(fd, &pkt, data_len + sizeof(int64_t), 0,
+                               (struct sockaddr *)&addr, sizeof(addr)));
+
+                long ts = get_time_ms();
+                cque.push_back({abs(pkt.seq), cur_bytes, ts, false, data_len});
+                cur_bytes += data_len;
+            }
+
+            if (cur_bytes < len && !cque.full()) continue;
+
+            int poll_ret = poll(&pollfd, 1, 1000);
+            if (poll_ret == 0) {
+                continue;
+            } else if (poll_ret > 0) {
+                do {
+                    CHK_ERR(recvfrom(fd, &ack_pkt, sizeof(struct ack_packet), 0,
+                                     NULL, NULL))
+                    int idx = ack_pkt.ack - cque.front().seq;
+                    if (idx < 0 || idx >= cque.size()) continue;
+                    cque[idx].ok = true;
+                } while (poll(&pollfd, 1, 0) > 0);
+                while (!cque.empty() && cque.front().ok) {
+                    cque.pop_front();
+                }
+            } else {
+                assert_perror(errno);
+            }
         }
     }
 };
@@ -85,7 +206,8 @@ class CommServer : Comm {
 
    public:
     CommServer(int port, int drop_rate) {
-        next_seq = 0;
+        srand(time(NULL));
+        next_seq = 1;
         this->drop_rate = drop_rate;
         CHK_ERR(fd = socket(AF_INET, SOCK_DGRAM, 0));
         struct sockaddr_in my_addr;
@@ -104,8 +226,10 @@ class CommServer : Comm {
         while (1) {
             CHK_ERR(len = recvfrom(fd, &pkt, sizeof(struct packet), 0,
                                    &remote_addr, &addr_len))
+            pkt.seq = abs(pkt.seq);
             if (pkt.seq < next_seq) {
                 puts("duplicate");
+                break;
             } else if (rand() % 100 < drop_rate) {
                 puts("drop");
             } else {
@@ -117,8 +241,48 @@ class CommServer : Comm {
         ack_pkt.ack = pkt.seq;
         CHK_ERR(sendto(fd, &ack_pkt, sizeof(struct ack_packet), 0, &remote_addr,
                        addr_len));
-        auto data = std::make_unique<unsigned char[]>(len - sizeof(uint64_t));
-        memcpy(data.get(), pkt.data, len - sizeof(uint64_t));
+        auto data = std::make_unique<unsigned char[]>(len - sizeof(int64_t));
+        memcpy(data.get(), pkt.data, len - sizeof(int64_t));
         return data;
+    }
+
+    char *recvbig() {
+        struct cbuf_item {
+            struct packet pkt;
+            int len;
+        };
+
+        CircularBuffer<std::unique_ptr<cbuf_item>> cbuf(window_size);
+        int len;
+        struct sockaddr remote_addr;
+        socklen_t addr_len = sizeof(struct sockaddr);
+        struct packet pkt;
+        while (1) {
+            CHK_ERR(len = recvfrom(fd, &pkt, sizeof(struct packet), 0,
+                                   &remote_addr, &addr_len))
+            if (rand() % 100 < drop_rate) {
+                puts("drop");
+                continue;
+            }
+            struct ack_packet ack_pkt;
+            ack_pkt.ack = abs(pkt.seq);
+            CHK_ERR(sendto(fd, &ack_pkt, sizeof(struct ack_packet), 0,
+                           &remote_addr, addr_len));
+
+            int idx = abs(pkt.seq) - next_seq;
+            if (idx < 0 || idx >= window_size || cbuf[idx] != nullptr) {
+                puts("out of window / duplicate");
+                continue;
+            }
+            cbuf[idx] = std::make_unique<struct cbuf_item>(cbuf_item{pkt, len});
+
+            while (cbuf.front() != nullptr) {
+                next_seq++;
+                cbuf.front()->pkt.data[cbuf.front()->len - sizeof(int64_t)] = 0;
+                std::cout << cbuf.front()->pkt.data << std::flush;
+                if (cbuf.front()->pkt.seq < 0) return nullptr;
+                cbuf.pop_front();
+            }
+        }
     }
 };
