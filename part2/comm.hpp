@@ -218,7 +218,7 @@ class CommServer : Comm {
         CHK_ERR(bind(fd, (struct sockaddr *)&my_addr, sizeof(my_addr)));
     }
 
-    std::unique_ptr<unsigned char[]> recv() {
+    void recv() {
         struct sockaddr remote_addr;
         socklen_t addr_len = sizeof(struct sockaddr);
         struct packet pkt;
@@ -241,12 +241,11 @@ class CommServer : Comm {
         ack_pkt.ack = pkt.seq;
         CHK_ERR(sendto(fd, &ack_pkt, sizeof(struct ack_packet), 0, &remote_addr,
                        addr_len));
-        auto data = std::make_unique<unsigned char[]>(len - sizeof(int64_t));
-        memcpy(data.get(), pkt.data, len - sizeof(int64_t));
-        return data;
+        write(STDOUT_FILENO, pkt.data, len - sizeof(int64_t));
+        return;
     }
 
-    char *recvbig() {
+    void recvbig() {
         struct cbuf_item {
             struct packet pkt;
             int len;
@@ -278,9 +277,9 @@ class CommServer : Comm {
 
             while (cbuf.front() != nullptr) {
                 next_seq++;
-                cbuf.front()->pkt.data[cbuf.front()->len - sizeof(int64_t)] = 0;
-                std::cout << cbuf.front()->pkt.data << std::flush;
-                if (cbuf.front()->pkt.seq < 0) return nullptr;
+                write(STDOUT_FILENO, cbuf.front()->pkt.data,
+                      cbuf.front()->len - sizeof(int64_t));
+                if (cbuf.front()->pkt.seq < 0) return;
                 cbuf.pop_front();
             }
         }
