@@ -70,7 +70,7 @@ class CircularQueue : public CircularBuffer<T> {
 class Comm {
    public:
     static constexpr int max_data_size = 65507 - sizeof(int64_t);
-    static const int window_size = 3;
+    static const int window_size = 5;
 
    protected:
     struct packet {
@@ -125,7 +125,7 @@ class CommClient : Comm {
 
             int ret = poll(&pollfd, 1, 1000);
             if (ret == 0) {
-                puts("timeout");
+                std::cerr << "timeout" << std::endl;
                 continue;
             }
             CHK_ERR(recvfrom(fd, &ack_pkt, sizeof(struct ack_packet), 0, NULL,
@@ -151,7 +151,7 @@ class CommClient : Comm {
         while (1) {
             for (int i = 0; i < cque.size(); i++) {
                 if (cque[i].ok || get_time_ms() - cque[i].ts < 1000) continue;
-                puts("resend");
+                std::cerr << "resend" << std::endl;
                 pkt.seq = cque[i].seq;
                 memcpy(pkt.data, (char *)data + cque[i].st_bytes,
                        cque[i].data_len);
@@ -228,10 +228,10 @@ class CommServer : Comm {
                                    &remote_addr, &addr_len))
             pkt.seq = abs(pkt.seq);
             if (pkt.seq < next_seq) {
-                puts("duplicate");
+                std::cerr << "duplicate" << std::endl;
                 break;
             } else if (rand() % 100 < drop_rate) {
-                puts("drop");
+                std::cerr << "drop" << std::endl;
             } else {
                 next_seq = pkt.seq + 1;
                 break;
@@ -260,7 +260,7 @@ class CommServer : Comm {
             CHK_ERR(len = recvfrom(fd, &pkt, sizeof(struct packet), 0,
                                    &remote_addr, &addr_len))
             if (rand() % 100 < drop_rate) {
-                puts("drop");
+                std::cerr << "drop" << std::endl;
                 continue;
             }
             struct ack_packet ack_pkt;
@@ -270,7 +270,7 @@ class CommServer : Comm {
 
             int idx = abs(pkt.seq) - next_seq;
             if (idx < 0 || idx >= window_size || cbuf[idx] != nullptr) {
-                puts("out of window / duplicate");
+                std::cerr << "out of window / duplicate" << std::endl;
                 continue;
             }
             cbuf[idx] = std::make_unique<struct cbuf_item>(cbuf_item{pkt, len});
