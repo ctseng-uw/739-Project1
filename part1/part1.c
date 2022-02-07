@@ -125,5 +125,28 @@ int main(int argc, char *argv[]) {
     }
     printf("average disk sequential read %ld\n", sum / iterations);
 
+    // Read 4K randomly from disk
+    sum = 0;
+    for (int i = 0; i < iterations; i ++) {
+        int increment = (4 * 1024) / 16;
+        int fd = open(filename, O_RDONLY);
+        // Clear the page cache
+        ret = system("sync; echo 3 > /proc/sys/vm/drop_caches");
+
+        clock_gettime(CLOCK_REALTIME, &start);
+        for (int j = 0; j < 16; j++) {
+            int index = rand() % 16;
+            lseek(fd, increment * index, SEEK_SET);
+            read(fd, buf, increment);
+        }
+        clock_gettime(CLOCK_REALTIME, &end);
+
+        close(fd);
+
+        diff = time_difference(start, end);
+        sum += diff.tv_nsec;
+    }
+    printf("average random read %ld\n", sum / iterations);
+
     return 0;
 }
