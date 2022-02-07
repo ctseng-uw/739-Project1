@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
     int iterations;
     char *filename;
     int ret;
+    char buf[MB];
 
     if (argc < 2) {
         printf("Please specify the number of iterations to average over\n");
@@ -88,7 +89,6 @@ int main(int argc, char *argv[]) {
         return 0;
     sum = 0;
     for (int i = 0; i < iterations; i++) {
-        char buf[MB];
         int fd = open(filename, O_RDONLY);
 
         // Clear the page cache
@@ -104,7 +104,11 @@ int main(int argc, char *argv[]) {
         }
 
         close(fd);
+
+	diff = time_difference(start, end);
+	sum += diff.tv_nsec;
     }
+    printf("average disk sequential read %ld\n", sum / iterations);
 
     return 0;
 }
