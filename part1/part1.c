@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <string.h>
 
 #define MB 1024*1024
 
@@ -28,6 +29,7 @@ int main(int argc, char *argv[]) {
     char *filename;
     int ret;
     char buf[MB];
+    char buf2[MB];
 
     if (argc < 2) {
         printf("Please specify the number of iterations to average over\n");
@@ -84,6 +86,19 @@ int main(int argc, char *argv[]) {
     }
     printf("average mutex lock time %ld\n", sum / iterations);
 
+    // Measure the time it takes to read 1MB from memory
+    sum = 0;
+    for (int i = 0; i < iterations; i++) {
+        clock_gettime(CLOCK_REALTIME, &start);
+        memcpy(buf2, buf, MB);
+        clock_gettime(CLOCK_REALTIME, &end);
+
+        diff = time_difference(start, end);
+        sum += diff.tv_nsec;
+        buf[0] = buf2[0];
+    }
+    printf("average memory read %ld\n", sum / iterations);
+
     // Measure the time it takes to read 1MB from disk
     if (filename == NULL)
         return 0;
@@ -105,8 +120,8 @@ int main(int argc, char *argv[]) {
 
         close(fd);
 
-	diff = time_difference(start, end);
-	sum += diff.tv_nsec;
+        diff = time_difference(start, end);
+        sum += diff.tv_nsec;
     }
     printf("average disk sequential read %ld\n", sum / iterations);
 

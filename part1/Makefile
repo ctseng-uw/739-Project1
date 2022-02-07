@@ -1,2 +1,2 @@
 part1: part1.c
-	gcc -O part1.c -o part1
+	gcc part1.c -o part1
