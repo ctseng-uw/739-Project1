@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#define TIMEOUT 10
+#define TIMEOUT 1000
 
 #define CHK_ERR(stmt)         \
     if ((stmt) < 0) {         \
