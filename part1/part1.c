@@ -5,6 +5,8 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #define MB 1024*1024
 
@@ -22,22 +24,40 @@ struct timespec time_difference(struct timespec start, struct timespec end) {
     return diff;
 }
 
+int connect_socket(char *ip) {
+    int sock;
+    struct sockaddr_in remote = {0};
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    remote.sin_addr.s_addr = inet_addr(ip);
+    remote.sin_family = AF_INET;
+    remote.sin_port = htons(1234);
+
+    connect(sock, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
+
+    return sock;
+}
+
 int main(int argc, char *argv[]) {
     struct timespec start, end, diff;
     long int sum;
     int iterations;
-    char *filename;
+    char *filename = NULL;
+    char *ip = NULL;
     int ret;
     char buf[MB];
     char buf2[MB];
+    int sock;
 
     if (argc < 2) {
         printf("Please specify the number of iterations to average over\n");
         return -1;
-    } else if (argc < 3) {
-        filename = NULL;
-    } else {
+    }
+    if (argc >= 3) {
         filename = argv[2];
+    }
+    if (argc >= 4) {
+        ip = argv[3];
     }
     iterations = atoi(argv[1]);
 
@@ -147,6 +167,21 @@ int main(int argc, char *argv[]) {
         sum += diff.tv_nsec;
     }
     printf("average random read %ld\n", sum / iterations);
+
+    // Measure the time it takes to send 10K over network link
+    if (ip == NULL)
+        return 0;
+    sock = connect_socket(ip);
+    sum = 0;
+    for (int i = 0; i < iterations; i++) {
+        clock_gettime(CLOCK_REALTIME, &start);
+        send(sock, buf, 1*1024, 0);
+        clock_gettime(CLOCK_REALTIME, &end);
+
+        diff = time_difference(start, end);
+        sum += diff.tv_nsec;
+    }
+    printf("average network send %ld\n", sum /iterations);
 
     return 0;
 }
