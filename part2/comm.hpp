@@ -18,11 +18,12 @@
 #include <string>
 #include <vector>
 
+#define TIMEOUT 10
+
 #define CHK_ERR(stmt)         \
     if ((stmt) < 0) {         \
         assert_perror(errno); \
     }
-
 template <typename T>
 class CircularBuffer {
    protected:
@@ -69,8 +70,8 @@ class CircularQueue : public CircularBuffer<T> {
 
 class Comm {
    public:
-    static constexpr int max_data_size = 65507 - sizeof(int64_t);
-    static const int window_size = 5;
+    static constexpr int max_data_size = 100 - sizeof(int64_t);
+    static const int window_size = 3;
 
    protected:
     struct packet {
@@ -123,7 +124,7 @@ class CommClient : Comm {
             CHK_ERR(sendto(fd, &pkt, len + sizeof(int64_t), 0,
                            (struct sockaddr *)&addr, sizeof(addr)));
 
-            int ret = poll(&pollfd, 1, 1000);
+            int ret = poll(&pollfd, 1, TIMEOUT);
             if (ret == 0) {
                 std::cerr << "timeout" << std::endl;
                 continue;
@@ -150,7 +151,8 @@ class CommClient : Comm {
         struct ack_packet ack_pkt;
         while (1) {
             for (int i = 0; i < cque.size(); i++) {
-                if (cque[i].ok || get_time_ms() - cque[i].ts < 1000) continue;
+                if (cque[i].ok || get_time_ms() - cque[i].ts < TIMEOUT)
+                    continue;
                 std::cerr << "resend" << std::endl;
                 pkt.seq = cque[i].seq;
                 memcpy(pkt.data, (char *)data + cque[i].st_bytes,
@@ -177,7 +179,7 @@ class CommClient : Comm {
 
             if (cur_bytes < len && !cque.full()) continue;
 
-            int poll_ret = poll(&pollfd, 1, 1000);
+            int poll_ret = poll(&pollfd, 1, TIMEOUT);
             if (poll_ret == 0) {
                 continue;
             } else if (poll_ret > 0) {

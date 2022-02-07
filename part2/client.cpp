@@ -6,12 +6,13 @@
 int main(int argc, char *argv[]) {
     using namespace std;
     using namespace std::chrono;
-    CommClient client("localhost", 8888);
+    CommClient client(argv[2], 8888);
 
-    int loop_cnt = 10000;
+    int loop_cnt = 100000;
 
     if (argv[1][0] == '1') {
         uint64_t sum = 0;
+        int cnt = 0;
         char msg[] = "Hello, world!";
         for (int i = 0; i < loop_cnt; i++) {
             auto t1 = high_resolution_clock::now();
@@ -19,8 +20,10 @@ int main(int argc, char *argv[]) {
             auto t2 = high_resolution_clock::now();
             auto span = duration_cast<microseconds>(t2 - t1);
             sum += span.count();
+            if (span.count() > 1000) cnt++;
         }
         cout << endl << "round trip avg: " << sum / loop_cnt << " us" << endl;
+        cout << cnt << endl;
 
     } else if (argv[1][0] == '2') {
         char chunck[Comm::max_data_size];
