@@ -8,7 +8,7 @@ int main(int argc, char *argv[]) {
     using namespace std::chrono;
     CommClient client(argv[2], 8888);
 
-    int loop_cnt = 100000;
+    int loop_cnt = 1000;
 
     if (argv[1][0] == '1') {
         uint64_t sum = 0;
@@ -20,10 +20,11 @@ int main(int argc, char *argv[]) {
             auto t2 = high_resolution_clock::now();
             auto span = duration_cast<microseconds>(t2 - t1);
             sum += span.count();
-            if (span.count() > 1000) cnt++;
+            if (span.count() > TIMEOUT * 1000) cnt++;
         }
         cout << endl << "round trip avg: " << sum / loop_cnt << " us" << endl;
-        cout << cnt << endl;
+        cout << cnt << " packets with round trip time above " << TIMEOUT << "ms"
+             << endl;
 
     } else if (argv[1][0] == '2') {
         char chunck[Comm::max_data_size];

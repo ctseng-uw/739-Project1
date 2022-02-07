@@ -19,6 +19,8 @@
 #include <vector>
 
 #define TIMEOUT 1000
+#define MAX_UDP_DATA_SIZE 65507
+#define WINDOW_SIZE 3
 
 #define CHK_ERR(stmt)         \
     if ((stmt) < 0) {         \
@@ -70,8 +72,8 @@ class CircularQueue : public CircularBuffer<T> {
 
 class Comm {
    public:
-    static constexpr int max_data_size = 100 - sizeof(int64_t);
-    static const int window_size = 3;
+    static constexpr int max_data_size = MAX_UDP_DATA_SIZE - sizeof(int64_t);
+    static const int window_size = WINDOW_SIZE;
 
    protected:
     struct packet {
