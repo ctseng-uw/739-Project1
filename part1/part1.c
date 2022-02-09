@@ -174,7 +174,7 @@ int main(int argc, char *argv[]) {
 
         clock_gettime(CLOCK_REALTIME, &start);
         for (int j = 0; j < 16; j++) {
-            int index = rand() % 16;
+            int index = rand() % (MB / increment);
             lseek(fd, increment * index, SEEK_SET);
             read(fd, buf, increment);
         }
