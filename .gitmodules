@@ -1,0 +1,3 @@
+[submodule "part1/snappy"]
+	path = part1/snappy
+	url = git@github.com:google/snappy.git
