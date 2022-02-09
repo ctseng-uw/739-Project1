@@ -1,2 +1,2 @@
-part1: part1.c
-	gcc part1.c -o part1
+part1: part1.c snappy/build/libsnappy.a
+	g++ part1.c snappy/build/libsnappy.a -o part1

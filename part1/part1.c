@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include "snappy/snappy-c.h"
 
 #define MB 1024*1024
 
@@ -98,9 +99,9 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < iterations; i++) {
         clock_gettime(CLOCK_REALTIME, &start);
         pthread_mutex_lock(&lock);
+        pthread_mutex_unlock(&lock);
         clock_gettime(CLOCK_REALTIME, &end);
 
-        pthread_mutex_unlock(&lock);
         diff = time_difference(start, end);
         sum += diff.tv_nsec;
     }
@@ -118,6 +119,24 @@ int main(int argc, char *argv[]) {
         buf[0] = buf2[0];
     }
     printf("average memory read %ld\n", sum / iterations);
+
+    // Measure the time it take snappy to compress 1k
+    sum = 0;
+    for (int i = 0; i < iterations; i++) {
+        size_t buf_size = MB;
+        int fd = open("/dev/urandom", O_RDONLY);
+        read(fd, buf, 1024);
+
+        clock_gettime(CLOCK_REALTIME, &start);
+        snappy_compress(buf, 1024, buf2, &buf_size);
+        clock_gettime(CLOCK_REALTIME, &end);
+
+        diff = time_difference(start, end);
+        sum += diff.tv_nsec;
+
+        close(fd);
+    }
+    printf("average snappy compress time %ld\n", sum / iterations);
 
     // Measure the time it takes to read 1MB from disk
     if (filename == NULL)
