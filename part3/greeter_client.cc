@@ -17,12 +17,14 @@
  */
 
 #include <iostream>
+#include <numeric>
 #include <memory>
 #include <string>
-
-#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <ctime>
+#include <unistd.h>
+#include <sys/time.h>
+#include <chrono>
 #include <grpcpp/grpcpp.h>
-#include <grpcpp/health_check_service_interface.h>
 
 #ifdef BAZEL_BUILD
 #include "examples/protos/helloworld.grpc.pb.h"
@@ -30,9 +32,8 @@
 #include "helloworld.grpc.pb.h"
 #endif
 
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
+using grpc::Channel;
+using grpc::ClientContext;
 using grpc::Status;
 using helloworld::Greeter;
 using helloworld::HelloReply;
@@ -40,53 +41,139 @@ using helloworld::HelloRequest;
 using helloworld::HelloRequestInt;
 using helloworld::HelloRequestDouble;
 
-// Logic and data behind the server's behavior.
-class GreeterServiceImpl final : public Greeter::Service {
-  Status SayHello(ServerContext* context, const HelloRequest* request,
-                  HelloReply* reply) override {
-    std::string prefix("Hello ");
-    reply->set_message(prefix + request->name());
-    return Status::OK;
+class GreeterClient {
+public:
+  GreeterClient(std::shared_ptr<Channel> channel)
+      : stub_(Greeter::NewStub(channel)) {}
+
+  // Assembles the client's payload, sends it and presents the response back
+  // from the server.
+  std::string SayHello(const std::string& user, std::vector<double> &results) {
+    // Data we are sending to the server.
+    HelloRequest request;
+    request.set_name(user);
+    HelloReply reply;
+
+    // Context for the client. It could be used to convey extra information to
+    // the server and/or tweak certain RPC behaviors.
+    ClientContext context;
+
+    auto start = std::chrono::high_resolution_clock::now();
+    // The actual RPC.
+    Status status = stub_->SayHello(&context, request, &reply);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    results.push_back(elapsed_seconds.count());
+
+    // Act upon its status.
+    if (status.ok()) {
+      return reply.message();
+    } else {
+      std::cout << status.error_code() << ": " << status.error_message()
+                << std::endl;
+      return "RPC failed";
+    }
   }
 
-  Status SayHelloInt(ServerContext* context, const HelloRequestInt* request,
-                  HelloReply* reply) override {
-    std::string prefix("Value received ");
-    reply->set_message(prefix);
-    return Status::OK;
+  std::string SayHelloInt(const int d, std::vector<double> &results) {
+    HelloRequestInt request;
+    request.set_name(d);
+    HelloReply reply;
+    ClientContext context;
+
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    Status status = stub_->SayHelloInt(&context, request, &reply);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    results.push_back(elapsed_seconds.count());
+
+    if (status.ok()) {
+      return reply.message();
+    } else {
+        std::cout << "Failed here: "<< status.error_code() << ": " << status.error_message()
+          << std::endl;
+        return "RPC failed";
+      }
   }
 
-  Status SayHelloDouble(ServerContext* context, const HelloRequestDouble* request,
-                  HelloReply* reply) override {
-    std::string prefix("Value received ");
-    reply->set_message(prefix);
-    return Status::OK;
+  std::string SayHelloDouble(const double d, std::vector<double> &results) {
+    HelloRequestDouble request;
+    request.set_name(d);
+    HelloReply reply;
+    ClientContext context;
+
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    Status status = stub_->SayHelloDouble(&context, request, &reply);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    results.push_back(elapsed_seconds.count());
+
+    if (status.ok()) {
+      return reply.message();
+    } else {
+
+        std::cout << "Failed here: "<< status.error_code() << ": " << status.error_message()
+          << std::endl;
+        return "RPC failed";
+    }
   }
+
+ private:
+  std::unique_ptr<Greeter::Stub> stub_;
 };
 
-void RunServer() {
-  std::string server_address("0.0.0.0:50051");
-  GreeterServiceImpl service;
-
-  grpc::EnableDefaultHealthCheckService(true);
-  grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-  ServerBuilder builder;
-  // Listen on the given address without any authentication mechanism.
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  // Register "service" as the instance through which we'll communicate with
-  // clients. In this case it corresponds to an *synchronous* service.
-  builder.RegisterService(&service);
-  // Finally assemble the server.
-  std::unique_ptr<Server> server(builder.BuildAndStart());
-  std::cout << "Server listening on " << server_address << std::endl;
-
-  // Wait for the server to shutdown. Note that some other thread must be
-  // responsible for shutting down the server for this call to ever return.
-  server->Wait();
-}
 
 int main(int argc, char** argv) {
-  RunServer();
+  // Instantiate the client. It requires a channel, out of which the actual RPCs
+  // are created. This channel models a connection to an endpoint specified by
+  // the argument "--target=" which is the only expected argument.
+  // We indicate that the channel isn't authenticated (use of
+  // InsecureChannelCredentials()).
+  std::string target_str;
+  std::string arg_str("--target");
+  if (argc > 1) {
+    std::string arg_val = argv[1];
+    size_t start_pos = arg_val.find(arg_str);
+    if (start_pos != std::string::npos) {
+      start_pos += arg_str.size();
+      if (arg_val[start_pos] == '=') {
+        target_str = arg_val.substr(start_pos + 1);
+      } else {
+        std::cout << "The only correct argument syntax is --target="
+                  << std::endl;
+        return 0;
+      }
+    } else {
+      std::cout << "The only acceptable argument is --target=" << std::endl;
+      return 0;
+    }
+  } else {
+    target_str = "localhost:50051";
+  }
+  GreeterClient greeter(
+      grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
+  
 
+  std::string user("world");
+  std::vector<double> resultsStr, resultsInt, resultsDouble;
+  float avgStr, avgInt, avgDouble;
+
+  for(int i=0;i<1000;i++){
+    std::string reply = greeter.SayHello(user, resultsStr);
+    avgStr = accumulate(resultsStr.begin(), resultsStr.end(), 0.0) / resultsStr.size();
+
+    std::string replyInt = greeter.SayHelloInt(i, resultsInt);
+    avgInt = accumulate(resultsInt.begin(), resultsInt.end(), 0.0) / resultsInt.size();
+
+    std::string replyDouble = greeter.SayHelloDouble(i, resultsDouble);
+    avgDouble = accumulate(resultsDouble.begin(), resultsDouble.end(), 0.0) / resultsDouble.size();
+  }
+
+  std::cout<<avgStr<<" for str\n";
+  std::cout<<avgInt<<" for int\n";
+  std::cout<<avgDouble<<" for double\n";
   return 0;
 }
