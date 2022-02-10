@@ -10,6 +10,7 @@
 #include "snappy/snappy-c.h"
 
 #define MB 1024*1024
+#define GB 1024*1024*1024
 
 struct timespec time_difference(struct timespec start, struct timespec end) {
     struct timespec diff;
@@ -174,7 +175,7 @@ int main(int argc, char *argv[]) {
 
         clock_gettime(CLOCK_REALTIME, &start);
         for (int j = 0; j < 16; j++) {
-            int index = rand() % (MB / increment);
+            int index = rand() % (GB / increment);
             lseek(fd, increment * index, SEEK_SET);
             read(fd, buf, increment);
         }
