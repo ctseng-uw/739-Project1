@@ -1,30 +1,16 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <chrono>
+#include <iostream>
 #include "snappy/snappy-c.h"
 
 #define MB 1024*1024
 #define GB 1024*1024*1024
-
-struct timespec time_difference(struct timespec start, struct timespec end) {
-    struct timespec diff;
-
-    diff.tv_sec = end.tv_sec - start.tv_sec;
-    diff.tv_nsec = end.tv_nsec - start.tv_nsec;
-
-    if (diff.tv_nsec < 0) {
-        diff.tv_nsec += 1000000000;
-        diff.tv_sec--;
-    }
-
-    return diff;
-}
 
 int connect_socket(char *ip) {
     int sock;
@@ -41,7 +27,6 @@ int connect_socket(char *ip) {
 }
 
 int main(int argc, char *argv[]) {
-    struct timespec start, end, diff;
     long int sum;
     int iterations;
     char *filename = NULL;
@@ -52,7 +37,7 @@ int main(int argc, char *argv[]) {
     int sock;
 
     if (argc < 2) {
-        printf("Please specify the number of iterations to average over\n");
+        std::cout << "Please specify the number of iterations to average over\n";
         return -1;
     }
     if (argc >= 3) {
@@ -66,13 +51,13 @@ int main(int argc, char *argv[]) {
     // Measure the time taken from the clock_gettime calls
     sum = 0;
     for (int i = 0; i < iterations; i++) {
-        clock_gettime(CLOCK_REALTIME, &start);
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto start = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
+        auto diff = end - start;
+        sum += diff.count();
     }
-    printf("average clock_gettime %ld\n", sum / iterations);
+    std::cout << "average clock_gettime " << sum / iterations << std::endl;
 
     // Measure the time it takes to access main memory
     sum = 0;
@@ -81,45 +66,44 @@ int main(int argc, char *argv[]) {
         long t2 = 5;
         long *ref = &t2;
 
-        clock_gettime(CLOCK_REALTIME, &start);
+        auto start = std::chrono::high_resolution_clock::now();
         asm("MOVNTI %0, (%1); MFENCE"
             : /* No output registers*/
             : "r" (t1), "r" (ref)
             : /* No clobbers */
         );
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto end = std::chrono::high_resolution_clock::now();
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
+        auto diff = end - start;
+        sum += diff.count();
     }
-    printf("average main memory access store %ld\n", sum / iterations);
+    std::cout << "average main memory access store " << sum / iterations << std::endl;
 
     // Measure the time it takes to lock a mutex
     sum = 0;
     pthread_mutex_t lock;
     for (int i = 0; i < iterations; i++) {
-        clock_gettime(CLOCK_REALTIME, &start);
+        auto start = std::chrono::high_resolution_clock::now();
         pthread_mutex_lock(&lock);
         pthread_mutex_unlock(&lock);
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto end = std::chrono::high_resolution_clock::now();
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
+        auto diff = end - start;
+        sum += diff.count();
     }
-    printf("average mutex lock time %ld\n", sum / iterations);
+    std::cout << "average mutex lock time " << sum / iterations << std::endl;
 
     // Measure the time it takes to read 1MB from memory
     sum = 0;
     for (int i = 0; i < iterations; i++) {
-        clock_gettime(CLOCK_REALTIME, &start);
+        auto start = std::chrono::high_resolution_clock::now();
         memcpy(buf2, buf, MB);
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto end = std::chrono::high_resolution_clock::now();
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
-        buf[0] = buf2[0];
+        auto diff = end - start;
+        sum += diff.count();
     }
-    printf("average memory read %ld\n", sum / iterations);
+    std::cout << "average memory read " << sum / iterations << std::endl;
 
     // Measure the time it take snappy to compress 1k
     sum = 0;
@@ -128,16 +112,16 @@ int main(int argc, char *argv[]) {
         int fd = open("/dev/urandom", O_RDONLY);
         read(fd, buf, 1024);
 
-        clock_gettime(CLOCK_REALTIME, &start);
+        auto start = std::chrono::high_resolution_clock::now();
         snappy_compress(buf, 1024, buf2, &buf_size);
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto end = std::chrono::high_resolution_clock::now();
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
+        auto diff = end - start;
+        sum += diff.count();
 
         close(fd);
     }
-    printf("average snappy compress time %ld\n", sum / iterations);
+    std::cout << "average snappy compress time " << sum / iterations << std::endl;
 
     // Measure the time it takes to read 1MB from disk
     if (filename == NULL)
@@ -149,9 +133,9 @@ int main(int argc, char *argv[]) {
         // Clear the page cache
         ret = system("sync; echo 3 > /proc/sys/vm/drop_caches");
 
-        clock_gettime(CLOCK_REALTIME, &start);
+        auto start = std::chrono::high_resolution_clock::now();
         ret = read(fd, buf, MB);
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto end = std::chrono::high_resolution_clock::now();
 
         if (ret != MB) {
             printf("Error!");
@@ -160,10 +144,10 @@ int main(int argc, char *argv[]) {
 
         close(fd);
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
+        auto diff = end - start;
+        sum += diff.count();
     }
-    printf("average disk sequential read %ld\n", sum / iterations);
+    std::cout << "average disk sequential read " << sum / iterations << std::endl;
 
     // Read 4K randomly from disk
     sum = 0;
@@ -173,20 +157,20 @@ int main(int argc, char *argv[]) {
         // Clear the page cache
         ret = system("sync; echo 3 > /proc/sys/vm/drop_caches");
 
-        clock_gettime(CLOCK_REALTIME, &start);
+        auto start = std::chrono::high_resolution_clock::now();
         for (int j = 0; j < 16; j++) {
             int index = rand() % (GB / increment);
             lseek(fd, increment * index, SEEK_SET);
             read(fd, buf, increment);
         }
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto end = std::chrono::high_resolution_clock::now();
 
         close(fd);
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
+        auto diff = end - start;
+        sum += diff.count();
     }
-    printf("average random read %ld\n", sum / iterations);
+    std::cout << "average random read " << sum / iterations << std::endl;
 
     // Measure the time it takes to send 10K over network link
     if (ip == NULL)
@@ -194,14 +178,14 @@ int main(int argc, char *argv[]) {
     sock = connect_socket(ip);
     sum = 0;
     for (int i = 0; i < iterations; i++) {
-        clock_gettime(CLOCK_REALTIME, &start);
+        auto start = std::chrono::high_resolution_clock::now();
         send(sock, buf, 1*1024, 0);
-        clock_gettime(CLOCK_REALTIME, &end);
+        auto end = std::chrono::high_resolution_clock::now();
 
-        diff = time_difference(start, end);
-        sum += diff.tv_nsec;
+        auto diff = end - start;
+        sum += diff.count();
     }
-    printf("average network send %ld\n", sum /iterations);
+    std::cout << "average network send " << sum /iterations << std::endl;
 
     return 0;
 }
