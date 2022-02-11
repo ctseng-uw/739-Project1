@@ -33,12 +33,14 @@
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
+using grpc::ServerReader;
 using grpc::Status;
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 using helloworld::HelloRequestInt;
 using helloworld::HelloRequestDouble;
+using helloworld::StreamRequest;
 
 // Logic and data behind the server's behavior.
 class GreeterServiceImpl final : public Greeter::Service {
@@ -59,6 +61,17 @@ class GreeterServiceImpl final : public Greeter::Service {
   Status SayHelloDouble(ServerContext* context, const HelloRequestDouble* request,
                   HelloReply* reply) override {
     std::string prefix("Value received ");
+    reply->set_message(prefix);
+    return Status::OK;
+  }
+
+  Status DoClientStream(ServerContext *context, ServerReader<StreamRequest>* reader,
+                  HelloReply* reply) override {
+    StreamRequest request;
+    std::string prefix("Stream received");
+
+    while (reader->Read(&request)) {}
+
     reply->set_message(prefix);
     return Status::OK;
   }

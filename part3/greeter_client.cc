@@ -34,12 +34,14 @@
 
 using grpc::Channel;
 using grpc::ClientContext;
+using grpc::ClientWriter;
 using grpc::Status;
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 using helloworld::HelloRequestInt;
 using helloworld::HelloRequestDouble;
+using helloworld::StreamRequest;
 
 class GreeterClient {
 public:
@@ -121,6 +123,35 @@ public:
     }
   }
 
+  void DoClientStream(int buf_size, int transmit_size, std::vector<double> &results) {
+    StreamRequest req;
+    HelloReply reply;
+    ClientContext context;
+
+    std::string buf(buf_size, 'a');
+    req.set_buffer(buf);
+
+    std::unique_ptr<ClientWriter<StreamRequest>> writer(stub_->DoClientStream(&context, &reply));
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < transmit_size / buf_size; i++) {
+      if (!writer->Write(req)) {
+        std::cout << "broken connection!" << std::endl;
+        break;
+      }
+    }
+    writer->WritesDone();
+    Status status = writer->Finish();
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    results.push_back(elapsed_seconds.count());
+
+    if (!status.ok()) {
+      std::cout << "Failed here: " << status.error_code() << ":" << status.error_message() << std::endl;
+    }
+  }
+
  private:
   std::unique_ptr<Greeter::Stub> stub_;
 };
@@ -132,13 +163,18 @@ int main(int argc, char** argv) {
   // the argument "--target=" which is the only expected argument.
   // We indicate that the channel isn't authenticated (use of
   // InsecureChannelCredentials()).
-  std::string target_str;
-  std::string arg_str("--target");
-  if (argc > 1) {
-    std::string arg_val = argv[1];
-    size_t start_pos = arg_val.find(arg_str);
+  std::string target_str("localhost:50051");
+  std::string arg_target_str("--target");
+  std::string arg_buf_size_str("--buf_size");
+  std::string arg_transmit_str("--transmit");
+  int buf_size = 1024;
+  int transmit_size = 1024*1024;
+  for (int i = 1; i < argc; i++) {
+    std::string arg_val = argv[i];
+    size_t start_pos = arg_val.find(arg_target_str);
+
     if (start_pos != std::string::npos) {
-      start_pos += arg_str.size();
+      start_pos += arg_target_str.size();
       if (arg_val[start_pos] == '=') {
         target_str = arg_val.substr(start_pos + 1);
       } else {
@@ -146,20 +182,40 @@ int main(int argc, char** argv) {
                   << std::endl;
         return 0;
       }
-    } else {
-      std::cout << "The only acceptable argument is --target=" << std::endl;
-      return 0;
     }
-  } else {
-    target_str = "localhost:50051";
+
+    start_pos = arg_val.find(arg_buf_size_str);
+    if (start_pos != std::string::npos) {
+      start_pos += arg_buf_size_str.size();
+      if (arg_val[start_pos] == '=') {
+        std::string tmp = arg_val.substr(start_pos + 1);
+        buf_size = stoi(tmp);
+      } else {
+        std::cout << "Must be in the format of --buf_size=" << std::endl;
+        return 0;
+      }
+    }
+
+    start_pos = arg_val.find(arg_transmit_str);
+    if (start_pos != std::string::npos) {
+      start_pos += arg_transmit_str.size();
+      if (arg_val[start_pos] == '=') {
+        std::string tmp = arg_val.substr(start_pos + 1);
+        transmit_size = stoi(tmp);
+      } else {
+        std::cout << "Must be in the format of --transmit=" << std::endl;
+        return 0;
+      }
+    }
   }
+
   GreeterClient greeter(
       grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
   
 
   std::string user("world");
-  std::vector<double> resultsStr, resultsInt, resultsDouble;
-  float avgStr, avgInt, avgDouble;
+  std::vector<double> resultsStr, resultsInt, resultsDouble, resultsStream;
+  float avgStr, avgInt, avgDouble, avgStreamBW;
 
   for(int i=0;i<1000;i++){
     std::string reply = greeter.SayHello(user, resultsStr);
@@ -170,10 +226,15 @@ int main(int argc, char** argv) {
 
     std::string replyDouble = greeter.SayHelloDouble(i, resultsDouble);
     avgDouble = accumulate(resultsDouble.begin(), resultsDouble.end(), 0.0) / resultsDouble.size();
+
+    greeter.DoClientStream(buf_size, transmit_size, resultsStream);
   }
+  auto streamTime = accumulate(resultsStream.begin(), resultsStream.end(), 0.0) / resultsStream.size();
+  avgStreamBW = transmit_size * 8 / streamTime;
 
   std::cout<<avgStr<<" for str\n";
   std::cout<<avgInt<<" for int\n";
   std::cout<<avgDouble<<" for double\n";
+  std::cout<<avgStreamBW / 1000 / 1000 <<" streaming Mbits/second\n";
   return 0;
 }
