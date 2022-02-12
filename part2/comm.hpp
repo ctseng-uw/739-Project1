@@ -117,6 +117,7 @@ class CommClient : Comm {
     }
 
     void send(const void *data, int len) {
+        // std::cerr << get_time_ms() << std::endl;
         assert(len <= max_data_size);
         struct packet pkt;
         struct ack_packet ack_pkt;
@@ -138,6 +139,7 @@ class CommClient : Comm {
                 break;
             }
         }
+        // std::cerr << get_time_ms() << std::endl;
     }
 
     void sendbig(void *data, uint64_t len) {
@@ -246,6 +248,7 @@ class CommServer : Comm {
         CHK_ERR(sendto(fd, &ack_pkt, sizeof(struct ack_packet), 0, &remote_addr,
                        addr_len));
         write(STDOUT_FILENO, pkt.data, len - sizeof(int64_t));
+        // std::cerr << get_time_ms() << std::endl;
         return;
     }
 

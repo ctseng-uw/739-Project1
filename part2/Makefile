@@ -1,6 +1,6 @@
 ALL: server client
 
-O3:
+O3: server.cpp comm.hpp client.cpp
 	g++  -O3 -DNDEBUG -o server server.cpp
 	g++  -O3 -DNDEBUG -o client client.cpp
 	
