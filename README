@@ -1,7 +1,23 @@
 # UW-CS739-Project1
 
 ## Part 0
+Shown in part0/timing.cpp.
+Comparison with clock_gettime can be done by replacing chrono calls with those of clock_gettime
+
 ## Part 1
+Unless otherwise noted, all measurements are done from part1/part1.cpp
+* L1 cache reference: lines 72-109
+* Branch misprediction: Could not figure out good way to measure
+* L2 cache reference: lines 72-82, 111-148
+* Mutex lock/unlock: lines 170-182
+* Main memory reference: lines 150-168
+* Read 1MB from memory: lines 184-194
+* Compress 1K with Zippy (now Snappy): lines 196-212
+* Send 1K over 1Gbps link: lines 263-276
+* RTT within the same datacenter: ping -c 10 royal-13.cs.wisc.edu
+* Reading 1MB sequentially from SSD/HDD: lines 214-238
+* Read 4K randomly from SSD/Disk: lines 240-261
+* Packet from Madison->Netherlands->Madison: ping -c 10 government.nl
 
 
 ## Part 2
