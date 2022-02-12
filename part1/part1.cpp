@@ -5,6 +5,9 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include <chrono>
 #include <iostream>
 #include "snappy/snappy-c.h"
@@ -15,14 +18,20 @@
 
 int connect_socket(char *ip) {
     int sock;
+    struct addrinfo hints, *res, *p;
     struct sockaddr_in remote = {0};
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    getaddrinfo(ip, "1234", &hints, &res);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     remote.sin_addr.s_addr = inet_addr(ip);
     remote.sin_family = AF_INET;
     remote.sin_port = htons(1234);
 
-    connect(sock, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
+    connect(sock, (struct sockaddr *)res->ai_addr, sizeof(struct sockaddr_in));
 
     return sock;
 }
