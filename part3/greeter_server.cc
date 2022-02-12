@@ -40,6 +40,7 @@ using helloworld::HelloReply;
 using helloworld::HelloRequest;
 using helloworld::HelloRequestInt;
 using helloworld::HelloRequestDouble;
+using helloworld::HelloRequestComplex;
 using helloworld::StreamRequest;
 
 // Logic and data behind the server's behavior.
@@ -65,6 +66,13 @@ class GreeterServiceImpl final : public Greeter::Service {
     return Status::OK;
   }
 
+  Status SayHelloComplex(ServerContext* context, const HelloRequestComplex* request,
+                  HelloReply* reply) override {
+    std::string prefix("Value received ");
+    reply->set_message(prefix);
+    return Status::OK;
+  }
+
   Status DoClientStream(ServerContext *context, ServerReader<StreamRequest>* reader,
                   HelloReply* reply) override {
     StreamRequest request;
@@ -78,7 +86,7 @@ class GreeterServiceImpl final : public Greeter::Service {
 };
 
 void RunServer() {
-  std::string server_address("0.0.0.0:50051");
+  std::string server_address("0.0.0.0:50052");
   GreeterServiceImpl service;
 
   grpc::EnableDefaultHealthCheckService(true);

@@ -27,17 +27,14 @@ service Greeter {
   rpc SayHello (HelloRequest) returns (HelloReply) {}
   rpc SayHelloInt (HelloRequestInt) returns (HelloReply) {}
   rpc SayHelloDouble (HelloRequestDouble) returns (HelloReply) {}
+  rpc SayHelloComplex (HelloRequestComplex) returns (HelloReply) {}
+  
   rpc DoClientStream (stream StreamRequest) returns (HelloReply) {}
 }
 
 // The request message containing the user's name.
 message HelloRequest {
   string name = 1;
-}
-
-// The response message containing the greetings
-message HelloReply {
-  string message = 1;
 }
 
 message HelloRequestInt {
@@ -48,6 +45,19 @@ message HelloRequestDouble {
   double name = 1;
 }
 
+message HelloRequestComplex {
+  double val = 1;
+  int32 num = 2;
+  string name = 3;
+}
+
+
 message StreamRequest {
     string buffer = 1;
 }
+
+// The response message containing the greetings
+message HelloReply {
+  string message = 1;
+}
+

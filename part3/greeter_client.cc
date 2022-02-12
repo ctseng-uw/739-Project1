@@ -17,6 +17,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <numeric>
 #include <memory>
 #include <string>
@@ -42,6 +43,7 @@ using helloworld::HelloRequest;
 using helloworld::HelloRequestInt;
 using helloworld::HelloRequestDouble;
 using helloworld::StreamRequest;
+using helloworld::HelloRequestComplex;
 
 class GreeterClient {
 public:
@@ -66,6 +68,9 @@ public:
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
+    std::ofstream myfile;
+    myfile.open("RTT_str_opt.txt", std::ios_base::app); // append instead of overwrite
+    myfile << elapsed_seconds.count()<<std::endl; 
     results.push_back(elapsed_seconds.count());
 
     // Act upon its status.
@@ -89,6 +94,9 @@ public:
     Status status = stub_->SayHelloInt(&context, request, &reply);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
+    std::ofstream myfile;
+    myfile.open("RTT_int_opt.txt", std::ios_base::app); // append instead of overwrite
+    myfile <<elapsed_seconds.count()<<std::endl; 
     results.push_back(elapsed_seconds.count());
 
     if (status.ok()) {
@@ -107,16 +115,17 @@ public:
     ClientContext context;
 
     auto start = std::chrono::high_resolution_clock::now();
-    
     Status status = stub_->SayHelloDouble(&context, request, &reply);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
+    std::ofstream myfile;
+    myfile.open("RTT_double_opt.txt", std::ios_base::app); // append instead of overwrite
+    myfile <<elapsed_seconds.count()<<std::endl; 
     results.push_back(elapsed_seconds.count());
 
     if (status.ok()) {
       return reply.message();
     } else {
-
         std::cout << "Failed here: "<< status.error_code() << ": " << status.error_message()
           << std::endl;
         return "RPC failed";
@@ -152,6 +161,33 @@ public:
     }
   }
 
+  std::string SayHelloComplex(const double val, const int num, const std::string& user, std::vector<double> &results) {
+    HelloRequestComplex request;
+    request.set_name(user);
+    request.set_num(num);
+    request.set_val(val);
+    HelloReply reply;
+    ClientContext context;
+
+
+    auto start = std::chrono::high_resolution_clock::now();
+    Status status = stub_->SayHelloComplex(&context, request, &reply);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    std::ofstream myfile;
+    myfile.open("RTT_complex_opt.txt", std::ios_base::app); // append instead of overwrite
+    myfile << elapsed_seconds.count()<<std::endl; 
+    results.push_back(elapsed_seconds.count());
+
+    if (status.ok()) {
+      return reply.message();
+    } else {
+        std::cout << "Failed here: "<< status.error_code() << ": " << status.error_message()
+          << std::endl;
+        return "RPC failed";
+    }
+  }
+
  private:
   std::unique_ptr<Greeter::Stub> stub_;
 };
@@ -163,7 +199,7 @@ int main(int argc, char** argv) {
   // the argument "--target=" which is the only expected argument.
   // We indicate that the channel isn't authenticated (use of
   // InsecureChannelCredentials()).
-  std::string target_str("localhost:50051");
+  std::string target_str("localhost:50052");
   std::string arg_target_str("--target");
   std::string arg_buf_size_str("--buf_size");
   std::string arg_transmit_str("--transmit");
@@ -214,12 +250,27 @@ int main(int argc, char** argv) {
   
 
   std::string user("world");
-  std::vector<double> resultsStr, resultsInt, resultsDouble, resultsStream;
-  float avgStr, avgInt, avgDouble, avgStreamBW;
+  std:: string smallStr, medStr, longStr;
+  for (int i = 0; i < 512; i++)
+        smallStr = smallStr + 'a';
+  for (int i = 0; i < 1024; i++)
+        medStr = medStr + 'a';
+  for (int i = 0; i < 2048; i++)
+        longStr = longStr + 'a';
+  
 
-  for(int i=0;i<1000;i++){
-    std::string reply = greeter.SayHello(user, resultsStr);
-    avgStr = accumulate(resultsStr.begin(), resultsStr.end(), 0.0) / resultsStr.size();
+  std::vector<double> resultsSmallStr,resultsMedStr, resultsInt, resultsDouble, resultsComplex, resultsLongStr, resultsStream;
+  float avgSmallStr, avgMedStr, avgInt, avgDouble, avgComplex, avgLongStr, avgStreamBW;
+
+  for(int i=0;i<100;i++){
+    std::string replySmallStr = greeter.SayHello(smallStr, resultsSmallStr);
+    avgSmallStr = accumulate(resultsSmallStr.begin(), resultsSmallStr.end(), 0.0) / resultsSmallStr.size();
+
+    std::string replyMedStr = greeter.SayHello(medStr, resultsMedStr);
+    avgMedStr = accumulate(resultsMedStr.begin(), resultsMedStr.end(), 0.0) / resultsMedStr.size();
+
+    std::string replyLongStr = greeter.SayHello(longStr, resultsLongStr);
+    avgLongStr = accumulate(resultsLongStr.begin(), resultsLongStr.end(), 0.0) / resultsLongStr.size();
 
     std::string replyInt = greeter.SayHelloInt(i, resultsInt);
     avgInt = accumulate(resultsInt.begin(), resultsInt.end(), 0.0) / resultsInt.size();
@@ -227,14 +278,23 @@ int main(int argc, char** argv) {
     std::string replyDouble = greeter.SayHelloDouble(i, resultsDouble);
     avgDouble = accumulate(resultsDouble.begin(), resultsDouble.end(), 0.0) / resultsDouble.size();
 
+    std::string replyComplex = greeter.SayHelloComplex(i+1, i, user, resultsComplex);
+    avgComplex = accumulate(resultsComplex.begin(), resultsComplex.end(), 0.0) / resultsComplex.size();
+  
     greeter.DoClientStream(buf_size, transmit_size, resultsStream);
   }
+  
   auto streamTime = accumulate(resultsStream.begin(), resultsStream.end(), 0.0) / resultsStream.size();
   avgStreamBW = transmit_size * 8 / streamTime;
-
-  std::cout<<avgStr<<" for str\n";
+  
+  std::cout<<avgSmallStr<<" for str\n";
+  std::cout<<avgLongStr<<" for med str\n";
+  std::cout<<avgLongStr<<" for long str\n";
   std::cout<<avgInt<<" for int\n";
   std::cout<<avgDouble<<" for double\n";
+  std::cout<<avgComplex<<" for complex\n";
+
   std::cout<<avgStreamBW / 1000 / 1000 <<" streaming Mbits/second\n";
+
   return 0;
 }
