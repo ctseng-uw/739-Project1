@@ -411,7 +411,7 @@ void marshallUnmarshallMsgs(){
 int main(int argc, char *argv[]) {
 
     shared_ptr<TTransport> trans;
-    trans = make_shared<TSocket>("34.134.35.35", 5050); //change hostname here
+    trans = make_shared<TSocket>("localhost", 5050); //change hostname here
     trans = make_shared<TBufferedTransport>(trans);
     auto proto = make_shared<TBinaryProtocol>(trans);
     CustomSvcClient client(proto);
