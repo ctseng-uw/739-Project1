@@ -184,7 +184,7 @@ void clientStreaming(CustomSvcClient client)
 void marshallMsgs(){
 
     int32_t size_written;
-    auto trans_m = make_shared<TMemoryBuffer>(40960);
+    auto trans_m = make_shared<TMemoryBuffer>(4096);
     TBinaryProtocol binary_proto(trans_m);
 
     //pack int and measure time
