@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
         auto diff = end - start;
         sum += diff.count();
     }
-    std::cout << "average clock_gettime " << sum / iterations << std::endl;
+    std::cout << "average high_resolution_clock::now() time " << sum / iterations << std::endl;
 
     // Measure MFENCE time
     sum = 0;
