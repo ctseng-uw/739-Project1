@@ -42,3 +42,11 @@ C. Compiler Optimization
     - See `part2/Makefile`
     
 ## Part 3
+
+Thrift:
+Refer to the Thrift code in `part3/thrift/` folder.
+    1. Marshalling and Unmarshalling of various data types: Method `marshallUnmarshallMsgs` (lines 184-409 of Client.cpp)
+    2. Round Trip time calculation: Method `roundTripTimeCalc` (lines 58-155 of Client.cpp)
+    3. Total Bandwidth: Method `bandwidthCalc` (lines 157-182 of Client.cpp)
+Change the hostname in line 414.
+For details regarding thrift, refer to the README.md file in the `part3/thrift/` folder.
