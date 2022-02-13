@@ -15,3 +15,8 @@ Implementation and Execution:
 4. Create the Client.cpp file to implement the methods exposed by the server (in Server.cpp)
 5. Run the command - ./server & to run the server in the background
 6. Now run the client by running the command - client -a <flag> in the above command, flag can be the following: a. 1: marshalling and unmarshalling of messages and the time taken for them b. 2: round trip time for various data types c. 3: bandwidth calculation for varying message sizes. run with the -h flag for help
+
+  
+Reference: 
+1. https://thrift.apache.org/
+2. Programmer's guide to Apache Thrift by Randy Abernethy
