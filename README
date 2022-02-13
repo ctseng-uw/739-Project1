@@ -22,6 +22,7 @@ Unless otherwise noted, all measurements are done from part1/part1.cpp
 
 ## Part 2
 - The library code is in `part2/comm.hpp`
+- For detail about running the program, see `part2/README.md`
 A. Performance
     1. Overhead
         - Since we use tcpdump, this part is not fully automatic, so it's not entirely in code.
