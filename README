@@ -43,6 +43,40 @@ C. Compiler Optimization
     
 ## Part 3
 
+gRPC:
+Refer to the gRPC code in `part3/grpc/` folder.
+A. Marshalling and unmarshalling of various data types have been measured using timers inside helloword.pb.cc file provided. Refer to the <requestType>::InternalSerialize and <requestType>::InternalParse functions to see the timing being calculated, e.g. function `HelloRequestInt::_InternalSerialize` on line 511.
+```
+    auto start = std::chrono::high_resolution_clock::now();
+    //some processing
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    std::ofstream myfile;
+    myfile.open("serialize_int.txt", std::ios_base::app); // append instead of overwrite
+    myfile <<ns.count()<<std::endl;
+```
+Similar snippets are used across the file for other data types as well.
+
+B. RTT is being calculated in `greeter_client.cc` in all the SayHello<datatype> functions, e.g in SayHelloInt, lines 92-100 calculate the RTT for each request. This is later used to find mean RTT in `main()` function, line 276
+
+    Each RTT involves the following overheads in order
+        - Marshalling request on client
+        - Network time
+        - Unmarshalling received request on server
+        - Server processing time
+        - Marshalling response on server
+        - Network time
+        - Unmarshalling response on client
+
+    Request and response times are roughly RTT/2. For different machines, we assume the clocks are synchronized.
+
+C. For streaming and bandwidth calculation, refer to function `DoClientStream` on line 135 in `greeter_client.cc`.
+
+D. For optimization, CMakeLists.txt has been updated with `add_compile_options(-O3)`.
+
+For running the code and generating the measurements, please refer to README.md in `/part3/grpc`.
+
+
 Thrift:
 Refer to the Thrift code in `part3/thrift/` folder.
     1. Marshalling and Unmarshalling of various data types: Method `marshallUnmarshallMsgs` (lines 184-409 of Client.cpp)
@@ -50,3 +84,4 @@ Refer to the Thrift code in `part3/thrift/` folder.
     3. Total Bandwidth: Method `bandwidthCalc` (lines 157-182 of Client.cpp)
 Change the hostname in line 414.
 For details regarding thrift, refer to the README.md file in the `part3/thrift/` folder.
+

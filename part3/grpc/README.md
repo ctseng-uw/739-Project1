@@ -53,13 +53,24 @@ Make changes to the helloworld/cmake/build/helloworld.pb.cc file to log the mars
 $ make -j 4
 Repeat step 5 to get RTT measurements
 This will generate files with measurements from marshalling/unmarshalling overheads and RTT time for 100 requests with different payloads, and also print the mean RTT and bandwidth to the standard console.
+
+Request and response times are roughly RTT/2.
+Each RTT involves the following overheads;
+- Marshalling request on client
+- Network time
+- Unmarshalling received request on server
+- Server processing time
+- Marshalling response on server
+- Network time
+- Unmarshalling response on client
+
 Please note, are the measurements are in nanoseconds.
+
 
 ### 9. Run on different machines
 For running the client on a separate machine, ssh into another machine, royal-13 for instance, and navigate to examples/cpp/helloworld/cmake.build
 $ ./greeter_client --target=royal-13.cs.wisc.edu:50051
 
 ### 10. Compiler optimization,
-Add the following in CMakeLists.txt under # Options
-add_compile_options(-O3)
-make clean and repeat step 1,3,4,5 to get measurements
+Replace the CMakeLists.txt inside grpc/ with the CMakeLists.txt provided here in part 3.
+Make clean and repeat step 1,3,4,5 to get measurements
