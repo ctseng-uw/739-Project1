@@ -55,7 +55,7 @@ void showOptionUsage()
     cout << "3 = Bandwidth calculation for varying message sizes" << endl;
 }
 
-void roundTripSameMachine(CustomSvcClient client){
+void roundTripTimeCalc(CustomSvcClient client){
 
     int print_count = 0;
 
@@ -154,7 +154,7 @@ void roundTripSameMachine(CustomSvcClient client){
     cout << "avg rtt time : " << avg_rtt << " ns" << std::endl;
 }
 
-void clientStreaming(CustomSvcClient client)
+void bandwidthCalc(CustomSvcClient client)
 {
     int sizeArr[] = {128, 256, 512, 1024, 2048, 4096, 8192};
     int len = sizeof(sizeArr)/sizeof(sizeArr[0]);
@@ -181,7 +181,7 @@ void clientStreaming(CustomSvcClient client)
     }
 }
 
-void marshallMsgs(){
+void marshallUnmarshallMsgs(){
 
     int32_t size_written;
     auto trans_m = make_shared<TMemoryBuffer>(4096);
@@ -466,19 +466,19 @@ int main(int argc, char *argv[]) {
         {
             case 1:
             {
-                marshallMsgs();
+                marshallUnmarshallMsgs();
                 break;
             }
 
             case 2:
             {
-                roundTripSameMachine(client);
+                roundTripTimeCalc(client);
                 break;
             }
 
             case 3:
             {
-                clientStreaming(client);
+                bandwidthCalc(client);
                 break;
             }
         }
