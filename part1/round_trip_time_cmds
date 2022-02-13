@@ -1,6 +1,6 @@
 For round trip time within a datacenter, start a cloudlab experiment in the small-lan config.
 From node0, run:
-ping -c 10 10.10.1.2
+ping -c 10 royal-13.cs.wisc.edu
 
 For the round trip tim from Madison -> Netherlands -> Madison, run:
 ping -c 10 government.nl
